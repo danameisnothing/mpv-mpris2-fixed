@@ -387,45 +387,25 @@ pub fn metadata(mpv: crate::MPVHandle) -> HashMap<&'static str, Value<'static>> 
 
 fn thumbnail(mpv: crate::MPVHandle) -> Option<String> {
     let path = get!(mpv, c"path");
-    if path == get!(mpv, c"stream-open-filename") {
-        Command::new("ffmpegthumbnailer")
-            .args(["-m", "-cjpeg", "-s0", "-o-", "-i"])
-            .arg(&path)
-            .kill_on_drop(true)
-            .output()
-            .or(async {
-                Timer::after(Duration::from_secs(1)).await;
-                Err(io::ErrorKind::TimedOut.into())
-            })
-            .block()
-            .ok()
-            .map(|output| {
-                const PREFIX: &str = "data:image/jpeg;base64,";
-                let len = PREFIX.len() + BASE64.encode_len(output.stdout.len());
-                let mut data = String::with_capacity(len);
-                data.push_str(PREFIX);
-                BASE64.encode_append(&output.stdout, &mut data);
-                data
-            })
-    } else {
-        ["yt-dlp", "yt-dlp_x86", "youtube-dl"]
-            .into_iter()
-            .find_map(|cmd| {
-                Command::new(cmd)
-                    .args(["--no-warnings", "--get-thumbnail"])
-                    .arg(&path)
-                    .kill_on_drop(true)
-                    .output()
-                    .or(async {
-                        Timer::after(Duration::from_secs(5)).await;
-                        Err(io::ErrorKind::TimedOut.into())
-                    })
-                    .block()
-                    .ok()
-                    .map(|output| String::from(String::from_utf8_lossy(&output.stdout)))
-                    .map(truncate_newline)
-            })
-    }
+    Command::new("ffmpegthumbnailer")
+        .args(["-m", "-cpng", "-s0", "-o-", "-i"])
+        .arg(&path)
+        .kill_on_drop(true)
+        .output()
+        .or(async {
+            Timer::after(Duration::from_secs(1)).await;
+            Err(io::ErrorKind::TimedOut.into())
+        })
+        .block()
+        .ok()
+        .map(|output| {
+            const PREFIX: &str = "data:image/png;base64,";
+            let len = PREFIX.len() + BASE64.encode_len(output.stdout.len());
+            let mut data = String::with_capacity(len);
+            data.push_str(PREFIX);
+            BASE64.encode_append(&output.stdout, &mut data);
+            data
+        })
     .filter(|url| Url::parse(url).is_ok())
 }
 
